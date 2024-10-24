@@ -26,15 +26,15 @@ def analyze_table_nulls() -> pd.DataFrame:
     Uses configuration from .env file.
     """
     try:
-        #######################################
-        ###### Configure it as you need #######
-        #######################################
+        #########################################
+        ###### Configure them as you need #######
+        #########################################
         table_name = 'CORP_PARTY'
         schema_name = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
         event_id_column = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
         filing_type = 'NOCDR'
         row_limit = 1000 # there are a loooot of rows in some tables, pick your number
-        #######################################
+        #########################################
         
         if not schema_name or not table_name:
             raise ValueError("Missing schema configuration or table name")

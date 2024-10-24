@@ -25,7 +25,7 @@ You can do this as many times as you want, that means how many levels deeper you
 - You may also find some extra tables hooked up with these tables when analyzing them
 
 ## How to use the NULL Columns finder tool
+- make a copy of `.evn.example` and add your secrets to your `.env`
+- configure parameters for table_name, schema_name, and limits in `find_null_columns.py`
 - `make setup` for install all dependencies
 - `make run` for running the tool
-
-Feel free to change parameters in the `find_null_columns.py` file for checking different tables in different databases

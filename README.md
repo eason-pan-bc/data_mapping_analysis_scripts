@@ -1,3 +1,9 @@
+# How to use the NULL Columns finder tool
+- make a copy of `.evn.example` and add your secrets to your `.env`
+- configure parameters in `find_null_columns.py`
+- `make setup` for install all dependencies
+- `make run` for running the tool
+
 # Data Mapping Analysis Scripts
 - Make sure you have DbSchema installed (not tested in other tools), and connected to COLIN db, either DEV or TST
 - This is a semi-automated process, you will need to run some verification scripts provided to verify whether a table actually related or not
@@ -24,8 +30,4 @@ You can do this as many times as you want, that means how many levels deeper you
 - Next, go to COLIN tst, and do some actual filings in the test system, and try to file several times to fill as many fields as possible, then find out the EVENT_IDs for these filings, and use them to figure out which columns got modified in the tables you found in previous steps
 - You may also find some extra tables hooked up with these tables when analyzing them
 
-## How to use the NULL Columns finder tool
-- make a copy of `.evn.example` and add your secrets to your `.env`
-- configure parameters in `find_null_columns.py`
-- `make setup` for install all dependencies
-- `make run` for running the tool
+

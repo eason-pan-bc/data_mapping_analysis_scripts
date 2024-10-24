@@ -19,3 +19,6 @@
 ### Step 3: (Optional) Repeat Step 2, but using results from Step 2
 You can do this as many times as you want, that means how many levels deeper you've digged in. From my experience, 2-levels is a good start point, and I find 3-levels can give me a good result
 
+### Next Step: Figure out columns
+- Before start, make sure you have a dummy business in COLIN tst, or you may need to IA one
+- Next, go to COLIN tst, and do some actual filings in the test system, and try to file several times to fill as many fields as possible, then find out the EVENT_IDs for these filings, and use them to figure out which columns got modified in the tables you found in previous steps

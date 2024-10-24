@@ -95,7 +95,7 @@ def analyze_table_nulls() -> pd.DataFrame:
             non_null_percentage = (non_null_count / sample_rows) * 100
             
             results.append({
-                'Column Name': column,
+                'Column Name': column.upper(),
                 'Non-NULL Count': non_null_count,
                 'Non-NULL Percentage': f"{non_null_percentage:.2f}%",
             })

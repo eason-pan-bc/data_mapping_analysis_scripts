@@ -9,7 +9,7 @@ WITH related_tables AS (
     WHERE ac.r_constraint_name IN (
         SELECT constraint_name
         FROM all_constraints
-        WHERE table_name = 'FILING'  
+        WHERE table_name = 'EVENT'  
             AND constraint_type IN ('P','F')
     )
 ),

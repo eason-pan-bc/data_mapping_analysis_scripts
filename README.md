@@ -23,3 +23,9 @@ You can do this as many times as you want, that means how many levels deeper you
 - Before start, make sure you have a dummy business in COLIN tst, or you may need to IA one
 - Next, go to COLIN tst, and do some actual filings in the test system, and try to file several times to fill as many fields as possible, then find out the EVENT_IDs for these filings, and use them to figure out which columns got modified in the tables you found in previous steps
 - You may also find some extra tables hooked up with these tables when analyzing them
+
+## How to use the NULL Columns finder tool
+- `make setup` for install all dependencies
+- `make run` for running the tool
+
+Feel free to change parameters in the `find_null_columns.py` file for checking different tables in different databases

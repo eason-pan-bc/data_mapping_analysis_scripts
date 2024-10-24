@@ -33,7 +33,7 @@ def analyze_table_nulls() -> pd.DataFrame:
         schema_name = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
         event_id_column = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
         filing_type = 'NOCDR'
-        row_limit = 1000 # there are a loooot of rows in some tables, pick your number
+        row_limit = 100 # there are a loooot of rows in some tables, pick your number
         #########################################
         
         if not schema_name or not table_name:
@@ -102,7 +102,7 @@ def analyze_table_nulls() -> pd.DataFrame:
         
         # Convert results to DataFrame and sort by non-NULL count in descending order
         results_df = pd.DataFrame(results)
-        results_df = results_df.sort_values('Non-NULL Count', ascending=False)
+        # results_df = results_df.sort_values('Non-NULL Count', ascending=False)
         
         return results_df
         

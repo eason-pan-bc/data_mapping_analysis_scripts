@@ -31,7 +31,7 @@ def analyze_table_nulls() -> pd.DataFrame:
         #######################################
         table_name = 'CORP_PARTY'
         schema_name = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
-        row_limit = 5000 # there are a loooot of rows in some tables, pick your number
+        row_limit = 10000 # there are a loooot of rows in some tables, pick your number
         #######################################
         
         if not schema_name or not table_name:
@@ -44,7 +44,7 @@ def analyze_table_nulls() -> pd.DataFrame:
         print("db connected")
         print('-'*100)
         
-         # Get total row count first
+        # Get total row count first
         with engine.connect() as conn:
             total_table_rows = pd.read_sql(
                 f"SELECT COUNT(*) as count FROM {schema_name}.{table_name}",
@@ -52,10 +52,12 @@ def analyze_table_nulls() -> pd.DataFrame:
             ).iloc[0]['count']
         
         # Read limited data from the table
-        print(f"Reading data from {schema_name}.{table_name} (limit: {row_limit:,} rows)...")
+        print(f"Reading random samples from {schema_name}.{table_name} (sample size: {row_limit:,} rows)...")
         query = f"""
-            SELECT * FROM {schema_name}.{table_name}
-            WHERE ROWNUM <= {row_limit}
+            SELECT * FROM (
+                SELECT * FROM {schema_name}.{table_name}
+                ORDER BY DBMS_RANDOM.VALUE
+            ) WHERE ROWNUM <= {row_limit}
         """
         df = pd.read_sql(query, engine)
         

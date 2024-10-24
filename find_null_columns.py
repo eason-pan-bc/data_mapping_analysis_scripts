@@ -31,7 +31,9 @@ def analyze_table_nulls() -> pd.DataFrame:
         #######################################
         table_name = 'CORP_PARTY'
         schema_name = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
-        row_limit = 10000 # there are a loooot of rows in some tables, pick your number
+        event_id_column = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
+        filing_type = 'NOCDR'
+        row_limit = 1000 # there are a loooot of rows in some tables, pick your number
         #######################################
         
         if not schema_name or not table_name:
@@ -43,28 +45,47 @@ def analyze_table_nulls() -> pd.DataFrame:
         engine = create_engine(connection_string)
         print("db connected")
         print('-'*100)
-        
-        # Get total row count first
-        with engine.connect() as conn:
-            total_table_rows = pd.read_sql(
-                f"SELECT COUNT(*) as count FROM {schema_name}.{table_name}",
-                conn
-            ).iloc[0]['count']
-        
-        # Read limited data from the table
-        print(f"Reading random samples from {schema_name}.{table_name} (sample size: {row_limit:,} rows)...")
-        query = f"""
+
+        # Build the filtered query with random sampling
+        filtered_query = f"""
+            WITH filtered_rows AS (
+                SELECT t.*
+                FROM {schema_name}.{table_name} t
+                WHERE t.{event_id_column} IN (
+                    SELECT e.EVENT_ID 
+                    FROM EVENT e 
+                    JOIN FILING f ON e.EVENT_ID = f.EVENT_ID 
+                    WHERE f.FILING_TYP_CD = '{filing_type}'
+                )
+            )
             SELECT * FROM (
-                SELECT * FROM {schema_name}.{table_name}
+                SELECT * FROM filtered_rows
                 ORDER BY DBMS_RANDOM.VALUE
             ) WHERE ROWNUM <= {row_limit}
         """
-        df = pd.read_sql(query, engine)
+        
+        # Get total count of filtered rows
+        count_query = f"""
+            SELECT COUNT(*) as count
+            FROM {schema_name}.{table_name} t
+            WHERE t.{event_id_column} IN (
+                SELECT e.EVENT_ID 
+                FROM EVENT e 
+                JOIN FILING f ON e.EVENT_ID = f.EVENT_ID 
+                WHERE f.FILING_TYP_CD = '{filing_type}'
+            )
+        """
+        
+        # Get counts and data
+        print(f"\nAnalyzing {table_name} for filing type: {filing_type}")
+        with engine.connect() as conn:
+            total_filtered_rows = pd.read_sql(count_query, conn).iloc[0]['count']
+            df = pd.read_sql(filtered_query, conn)
         
         # Get sample size
         sample_rows = len(df)
-        print(f"\nAnalyzing sample of {sample_rows:,} rows out of {total_table_rows:,} total rows")
-        print(f"Sample represents {(sample_rows/total_table_rows)*100:.2f}% of the table")
+        print(f"Total rows matching filter: {total_filtered_rows:,}")
+        print(f"Random sample size: {sample_rows:,} rows ({(sample_rows/total_filtered_rows)*100:.2f}% of filtered data)")
         print('-'*100)
         
         # Calculate non-NULL counts and percentages for each column

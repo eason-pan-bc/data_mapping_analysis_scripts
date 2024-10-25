@@ -3,7 +3,9 @@
 - configure parameters in `find_null_columns.py`
 - `make setup` for install all dependencies
 - `make run` for running the tool
-- Now also support full range mode to check all rows instead of random sampling. You can enable it by tweaking the `random_sampling` config in `find_null_columns.py`
+- Also support full range mode to check all rows instead of random sampling. You can enable it by tweaking the `random_sampling` config in `find_null_columns.py`
+- (new feature) A feature to figure out non-null columns from tables not directly connected to EVENT_ID related tables. (Need to figure out these table names and connected column names in DbSchema first)
+    - e.g. CORP_PARTY table is related to x filing, and ADDRESS table connected to CORP_PARTY table by ADDR_ID
 
 # Data Mapping Analysis Scripts
 - Make sure you have DbSchema installed (not tested in other tools), and connected to COLIN db, either DEV or TST

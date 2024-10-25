@@ -4,6 +4,25 @@ from dotenv import load_dotenv
 import os
 
 
+################################################################################################
+############################### Configure them as you wish #####################################
+################################################################################################
+#### Configures for finding columns in tables directly related to, by EVENT_ID or their fks #####
+TABLE_NAME = 'CORP_PARTY'
+SCHEMA_NAME = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
+EVENT_ID_COLUMN = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
+FILING_TYPE = 'NOCDR'
+ROW_LIMIT = 100 # there are a loooot of rows in some tables, pick your number
+RANDOM_SAMPLING = True  # True -> random sampling || False -> all rows
+################################################################################################
+## Configures for finding columns in tables not directly related to, by EVENT_ID or their fks ##
+NON_DIRECT_MODE = True # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
+COLUMN_NAME_MAIN = 'MAILING_ADDR_ID'  # the column contains key that has been used in the connected table as fk
+CONNECTED_TABLE_NAME = 'ADDRESS'
+COLUMN_NAME_CONNECTED = 'ADDR_ID'
+################################################################################################
+
+
 def get_connection_string() -> str:
     """
     Creates connection string from environment variables.
@@ -21,32 +40,35 @@ def get_connection_string() -> str:
         
     return f"oracle://{user}:{password}@{host}:{port}/{service}"
 
-def analyze_table_nulls() -> pd.DataFrame:
+
+def connect_to_db():
+    """Create database connection"""
+    print("Creating db connection")
+    connection_string = get_connection_string()
+    engine = create_engine(connection_string)
+    print("db connected")
+    print('-'*100)
+    
+    return engine
+
+
+def analyze_table_nulls(engine) -> tuple:
     """
     Analyzes non-NULL and NULL values in all columns of a specified Oracle table.
     Uses configuration from .env file.
     """
     try:
-        #########################################
-        ###### Configure them as you need #######
-        #########################################
-        table_name = 'PAYMENT_STATE'
-        schema_name = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
-        event_id_column = 'EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
-        filing_type = 'NOCDR'
-        row_limit = 100 # there are a loooot of rows in some tables, pick your number
-        random_sampling = False  # True -> random sampling || False -> all rows
-        #########################################
+        
+        table_name = TABLE_NAME
+        schema_name = SCHEMA_NAME
+        event_id_column = EVENT_ID_COLUMN
+        filing_type = FILING_TYPE
+        row_limit = ROW_LIMIT
+        random_sampling = RANDOM_SAMPLING
+        
         
         if not schema_name or not table_name:
             raise ValueError("Missing schema configuration or table name")
-        
-        # Create database connection
-        print("Creating db connection")
-        connection_string = get_connection_string()
-        engine = create_engine(connection_string)
-        print("db connected")
-        print('-'*100)
 
         if random_sampling:
             # Build the filtered query with random sampling
@@ -122,18 +144,67 @@ def analyze_table_nulls() -> pd.DataFrame:
                 'Non-NULL Percentage': f"{non_null_percentage:.2f}%",
             })
         
-        # Convert results to DataFrame and sort by non-NULL count in descending order
+        # Convert results to DataFrame
         results_df = pd.DataFrame(results)
-        # results_df = results_df.sort_values('Non-NULL Count', ascending=False)
-        
-        return results_df
+        if NON_DIRECT_MODE:
+            print("Stage 1 analyzing complete")
+            print('-'*100)
+        return results_df, df
         
     except Exception as e:
         print(f"Error: {str(e)}")
         raise
 
+
+def analyze_non_direct_table_nulls(df: pd.DataFrame,
+                                   engine) -> pd.DataFrame:
+    """ Query Oracle database using values from a pandas DataFrame column."""
+    # Extract unique values from the Main table
+    col_values = df[COLUMN_NAME_MAIN.lower()].unique().tolist()
+
+    # Convert the list to a string format suitable for Oracle IN clause
+    # Handle both string and numeric values
+    formatted_values = [f"'{val}'" if isinstance(val, str) else str(val) 
+                       for val in col_values]
+    values_string = ','.join(formatted_values)
+
+    # create Oracle query
+    query = f"""
+        SELECT *
+        FROM {CONNECTED_TABLE_NAME}
+        WHERE {COLUMN_NAME_CONNECTED} IN ({values_string})
+    """
+    try:
+        print("Stage 2 started.")
+        print(f"Analyzing...\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] ")
+        df = pd.read_sql(query, engine)
+        rows_count = len(df)
+
+        # Calculate non-NULL counts and percentages for each column
+        results = []
+        for column in df.columns:
+            non_null_count = df[column].count()
+            non_null_percentage = (non_null_count / rows_count) * 100
+            
+            results.append({
+                'Column Name': column.upper(),
+                'Non-NULL Count': non_null_count,
+                'Non-NULL Percentage': f"{non_null_percentage:.2f}%",
+            })
+        # Convert results to DataFrame
+        results_df = pd.DataFrame(results)
+        return results_df
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        raise 
+
+
+
 if __name__ == "__main__":
     try:
+        # Connect to db
+        engine = connect_to_db()
+
         # Configure pandas display options
         pd.set_option('display.max_rows', None)
         pd.set_option('display.max_columns', None)
@@ -141,11 +212,14 @@ if __name__ == "__main__":
         pd.set_option('display.float_format', lambda x: '%.2f' % x)
         
         # Run analysis
-        results = analyze_table_nulls()
+        direct_results, df = analyze_table_nulls(engine)
+        results = direct_results
         
-        # Print results
+        if NON_DIRECT_MODE:
+            non_direct_results = analyze_non_direct_table_nulls(df, engine)
+            results = non_direct_results
+        
         print("\nAnalysis Results:")
-        print("-" * 100)
         print(results)
         
     except Exception as e:

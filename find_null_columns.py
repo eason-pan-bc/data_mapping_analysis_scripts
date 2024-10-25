@@ -12,7 +12,7 @@ TABLE_NAME = 'CORP_PARTY'
 SCHEMA_NAME = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
 EVENT_ID_COLUMN = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
 FILING_TYPE = 'NOCDR'
-ROW_LIMIT = 100 # there are a loooot of rows in some tables, pick your number
+ROW_LIMIT = 10000 # there are a loooot of rows in some tables, pick your number
 RANDOM_SAMPLING = True  # True -> random sampling || False -> all rows
 ################################################################################################
 ## Configures for finding columns in tables not directly related to, by EVENT_ID or their fks ##
@@ -202,6 +202,9 @@ def analyze_non_direct_table_nulls(df: pd.DataFrame,
 
 if __name__ == "__main__":
     try:
+        if NON_DIRECT_MODE and ROW_LIMIT > 1000:
+            raise ValueError("maximum number of expressions in a list is 1000")
+    
         # Connect to db
         engine = connect_to_db()
 

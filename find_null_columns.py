@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import os
 
+
 def get_connection_string() -> str:
     """
     Creates connection string from environment variables.
@@ -29,11 +30,12 @@ def analyze_table_nulls() -> pd.DataFrame:
         #########################################
         ###### Configure them as you need #######
         #########################################
-        table_name = 'CORP_PARTY'
+        table_name = 'PAYMENT_STATE'
         schema_name = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
-        event_id_column = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
+        event_id_column = 'EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
         filing_type = 'NOCDR'
         row_limit = 100 # there are a loooot of rows in some tables, pick your number
+        random_sampling = False  # True -> random sampling || False -> all rows
         #########################################
         
         if not schema_name or not table_name:
@@ -46,23 +48,38 @@ def analyze_table_nulls() -> pd.DataFrame:
         print("db connected")
         print('-'*100)
 
-        # Build the filtered query with random sampling
-        filtered_query = f"""
-            WITH filtered_rows AS (
-                SELECT t.*
-                FROM {schema_name}.{table_name} t
-                WHERE t.{event_id_column} IN (
-                    SELECT e.EVENT_ID 
-                    FROM EVENT e 
-                    JOIN FILING f ON e.EVENT_ID = f.EVENT_ID 
-                    WHERE f.FILING_TYP_CD = '{filing_type}'
+        if random_sampling:
+            # Build the filtered query with random sampling
+            filtered_query = f"""
+                WITH filtered_rows AS (
+                    SELECT t.*
+                    FROM {schema_name}.{table_name} t
+                    WHERE t.{event_id_column} IN (
+                        SELECT e.EVENT_ID 
+                        FROM EVENT e 
+                        JOIN FILING f ON e.EVENT_ID = f.EVENT_ID 
+                        WHERE f.FILING_TYP_CD = '{filing_type}'
+                    )
                 )
-            )
-            SELECT * FROM (
+                SELECT * FROM (
+                    SELECT * FROM filtered_rows
+                    ORDER BY DBMS_RANDOM.VALUE
+                ) WHERE ROWNUM <= {row_limit}
+            """
+        else:
+            filtered_query = f"""
+                WITH filtered_rows AS (
+                    SELECT t.*
+                    FROM {schema_name}.{table_name} t
+                    WHERE t.{event_id_column} IN (
+                        SELECT e.EVENT_ID 
+                        FROM EVENT e 
+                        JOIN FILING f ON e.EVENT_ID = f.EVENT_ID 
+                        WHERE f.FILING_TYP_CD = '{filing_type}'
+                    )
+                )
                 SELECT * FROM filtered_rows
-                ORDER BY DBMS_RANDOM.VALUE
-            ) WHERE ROWNUM <= {row_limit}
-        """
+            """
         
         # Get total count of filtered rows
         count_query = f"""
@@ -82,17 +99,22 @@ def analyze_table_nulls() -> pd.DataFrame:
             total_filtered_rows = pd.read_sql(count_query, conn).iloc[0]['count']
             df = pd.read_sql(filtered_query, conn)
         
-        # Get sample size
-        sample_rows = len(df)
+        rows_count = len(df)
         print(f"Total rows matching filter: {total_filtered_rows:,}")
-        print(f"Random sample size: {sample_rows:,} rows ({(sample_rows/total_filtered_rows)*100:.2f}% of filtered data)")
+
+        if random_sampling:
+            # Get sample size
+            print(f"Random sample size: {rows_count:,} rows ({(rows_count/total_filtered_rows)*100:.2f}% of filtered data)")
+        else:
+            print(f"Full Range Mode, taking all {rows_count} rows")
+
         print('-'*100)
         
         # Calculate non-NULL counts and percentages for each column
         results = []
         for column in df.columns:
             non_null_count = df[column].count()
-            non_null_percentage = (non_null_count / sample_rows) * 100
+            non_null_percentage = (non_null_count / rows_count) * 100
             
             results.append({
                 'Column Name': column.upper(),

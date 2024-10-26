@@ -17,7 +17,7 @@ ROW_LIMIT = 5000 # there are a loooot of rows in some tables, pick your number
 RANDOM_SAMPLING = True  # True -> random sampling || False -> all rows
 ################################################################################################
 ## Configures for finding columns in tables not directly related to, by EVENT_ID or their fks ##
-NON_DIRECT_MODE = False # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
+NON_DIRECT_MODE = True # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
 COLUMN_NAME_MAIN = 'MAILING_ADDR_ID'  # the column contains key that has been used in the connected table as fk
 CONNECTED_TABLE_NAME = 'ADDRESS'
 COLUMN_NAME_CONNECTED = 'ADDR_ID'
@@ -182,31 +182,58 @@ def analyze_table_nulls(engine) -> tuple:
 def analyze_non_direct_table_nulls(df: pd.DataFrame,
                                    engine) -> pd.DataFrame:
     """ Query Oracle database using values from a pandas DataFrame column."""
-    # Extract unique values from the Main table
-    col_values = df[COLUMN_NAME_MAIN.lower()].unique().tolist()
+    # Extract unique values from the Main table, and split to chunks, if needed
+    col_values_list = df[COLUMN_NAME_MAIN.lower()].unique().tolist()
+    value_chunks = [col_values_list[i:i + 1000] for i in range(0, len(col_values_list), 1000)] # split a big pd list to small lists no longer than 1000 (Oracle expression limit)
+    total_chunks = len(value_chunks)
+    print(f"Split {len(col_values_list)} rows into {total_chunks} chunks.")
+    
+    all_results = pd.DataFrame()
+    total_rows = 0
 
-    # Convert the list to a string format suitable for Oracle IN clause
-    # Handle both string and numeric values
-    formatted_values = [f"'{val}'" if isinstance(val, str) else str(val) 
-                       for val in col_values]
-    values_string = ','.join(formatted_values)
+    print("Stage 2 started.")
+    print(f"Analyzing rows in connected table:\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] \n")
+    try: 
+        for i, chunk in enumerate(value_chunks, 1):
+            # Initialize progress bar on first chunk
+            if i == 1:
+                progress_bar = tqdm(total=total_chunks, 
+                        desc="Analyzing data: ",
+                        dynamic_ncols=True)
 
-    # create Oracle query
-    query = f"""
-        SELECT *
-        FROM {CONNECTED_TABLE_NAME}
-        WHERE {COLUMN_NAME_CONNECTED} IN ({values_string})
-    """
-    try:
-        print("Stage 2 started.")
-        print(f"Analyzing...\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] ")
-        df = read_with_progress_bar(query, engine, 1000, 100)
-        rows_count = len(df)
+            formatted_values = [f"'{val}'" if isinstance(val, str) else str(val) 
+                            for val in chunk]
+            values_string = ','.join(formatted_values)
+
+            # create Oracle query
+            query = f"""
+                SELECT *
+                FROM {CONNECTED_TABLE_NAME}
+                WHERE {COLUMN_NAME_CONNECTED} IN ({values_string})
+            """
+        
+            try:
+                # Execute query for this chunk
+                chunk_df = pd.read_sql_query(query, engine)
+                all_results = pd.concat([all_results, chunk_df], ignore_index=True)
+
+                # Update progress bar description with current stats
+                total_rows += len(chunk_df)
+                progress_bar.update(1)
+                progress_bar.set_postfix({
+                    'Total Rows': total_rows,
+                    'Chunk Size': len(chunk_df)
+                })
+            except Exception as e1:
+                print(f"Error processing chunk {i}: {e1}")
+                raise
+
+        rows_count = len(all_results)
 
         # Calculate non-NULL counts and percentages for each column
         results = []
-        for column in df.columns:
-            non_null_count = df[column].count()
+        for column in all_results.columns:
+            non_null_count = all_results[column].count()
             non_null_percentage = (non_null_count / rows_count) * 100
             
             results.append({
@@ -218,16 +245,13 @@ def analyze_non_direct_table_nulls(df: pd.DataFrame,
         results_df = pd.DataFrame(results)
         return results_df
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error in stage 2: {e}")
         raise 
 
 
 
 if __name__ == "__main__":
-    try:
-        if NON_DIRECT_MODE and ROW_LIMIT > 1000:
-            raise ValueError("maximum number of expressions in a list is 1000, please adjust the row_limit config")
-    
+    try:  
         # Connect to db
         engine = connect_to_db()
 

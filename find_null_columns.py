@@ -2,6 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import os
+from tqdm import tqdm
 
 
 ################################################################################################
@@ -12,11 +13,11 @@ TABLE_NAME = 'CORP_PARTY'
 SCHEMA_NAME = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
 EVENT_ID_COLUMN = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
 FILING_TYPE = 'NOCDR'
-ROW_LIMIT = 1000 # there are a loooot of rows in some tables, pick your number
+ROW_LIMIT = 5000 # there are a loooot of rows in some tables, pick your number
 RANDOM_SAMPLING = True  # True -> random sampling || False -> all rows
 ################################################################################################
 ## Configures for finding columns in tables not directly related to, by EVENT_ID or their fks ##
-NON_DIRECT_MODE = True # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
+NON_DIRECT_MODE = False # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
 COLUMN_NAME_MAIN = 'MAILING_ADDR_ID'  # the column contains key that has been used in the connected table as fk
 CONNECTED_TABLE_NAME = 'ADDRESS'
 COLUMN_NAME_CONNECTED = 'ADDR_ID'
@@ -50,6 +51,26 @@ def connect_to_db():
     print('-'*100)
     
     return engine
+
+
+def read_with_progress_bar(query:str, engine, row_count:int, chunk_size:int = 5000, description:str = "Analyzing data") -> pd.DataFrame:
+    """Read SQL query with a progress bar"""
+    # count_query = f"SELECT COUNT(*) as count FROM ({query})"
+    # total_rows = pd.read_sql(count_query, engine).iloc[0]['count']
+
+    #init a progress bar
+    progress_bar = tqdm(total=row_count, desc=description, unit="rows")
+
+
+    # read data in chunks
+    chunks = []
+    for chunk in pd.read_sql(query, engine, chunksize=chunk_size):
+        chunks.append(chunk)
+        progress_bar.update(len(chunk))
+    progress_bar.close()
+
+    # combine all chunks
+    return pd.concat(chunks, ignore_index=True)
 
 
 def analyze_table_nulls(engine) -> tuple:
@@ -116,10 +137,12 @@ def analyze_table_nulls(engine) -> tuple:
         """
         
         # Get counts and data
-        print(f"\nAnalyzing {table_name} for filing type: {filing_type}")
-        with engine.connect() as conn:
-            total_filtered_rows = pd.read_sql(count_query, conn).iloc[0]['count']
-            df = pd.read_sql(filtered_query, conn)
+        print(f"\nFetching entries in {table_name} related to filing type: {filing_type}......")
+        total_filtered_rows = pd.read_sql(count_query, engine).iloc[0]['count']
+        progress_total = total_filtered_rows
+        if RANDOM_SAMPLING:
+            progress_total = ROW_LIMIT
+        df = read_with_progress_bar(filtered_query, engine, progress_total, progress_total//100, f"Analyzing entries in {table_name}, related to {filing_type}: ")
         
         rows_count = len(df)
         print(f"Total rows matching filter: {total_filtered_rows:,}")
@@ -177,7 +200,7 @@ def analyze_non_direct_table_nulls(df: pd.DataFrame,
     try:
         print("Stage 2 started.")
         print(f"Analyzing...\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] ")
-        df = pd.read_sql(query, engine)
+        df = read_with_progress_bar(query, engine, 1000, 100)
         rows_count = len(df)
 
         # Calculate non-NULL counts and percentages for each column

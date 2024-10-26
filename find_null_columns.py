@@ -182,17 +182,16 @@ def analyze_table_nulls(engine) -> tuple:
 def analyze_non_direct_table_nulls(df: pd.DataFrame,
                                    engine) -> pd.DataFrame:
     """ Query Oracle database using values from a pandas DataFrame column."""
+    print("Stage 2 started.")
+    print(f"Analyzing rows in connected table:\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] \n")
     # Extract unique values from the Main table, and split to chunks, if needed
     col_values_list = df[COLUMN_NAME_MAIN.lower()].unique().tolist()
     value_chunks = [col_values_list[i:i + 1000] for i in range(0, len(col_values_list), 1000)] # split a big pd list to small lists no longer than 1000 (Oracle expression limit)
     total_chunks = len(value_chunks)
-    print(f"Split {len(col_values_list)} rows into {total_chunks} chunks.")
     
     all_results = pd.DataFrame()
     total_rows = 0
 
-    print("Stage 2 started.")
-    print(f"Analyzing rows in connected table:\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] \n")
     try: 
         for i, chunk in enumerate(value_chunks, 1):
             # Initialize progress bar on first chunk
@@ -221,7 +220,6 @@ def analyze_non_direct_table_nulls(df: pd.DataFrame,
                 total_rows += len(chunk_df)
                 progress_bar.update(1)
                 progress_bar.set_postfix({
-                    'Total Rows': total_rows,
                     'Chunk Size': len(chunk_df)
                 })
             except Exception as e1:

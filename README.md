@@ -15,11 +15,11 @@
 
 ## How to use the Scripts
 ### Step 1: Find out all tables directly related to EVENT table with EVENT_ID
-- Copy the SQL code from the `script_1.sql` file to a SQL editor in DbSchema and run it.
+- Copy the SQL code from the `sql_scripts/script_1.sql` file to a SQL editor in DbSchema and run it.
     <br/>you will get a results like this ![alt text](screenshots/image.png)
 - Run the queries in the QUERY_TO_RUN column to verify if the count is 0 or > 0, drop the tables with a 0 count
     <br/> Example output: <br/>![alt text](screenshots/image-1.png)
-    - Alternatively, you can use `script_2.sql` to see the actual data, remember to change the table_name and column_name
+    - Alternatively, you can use `sql_scripts/script_2.sql` to see the actual data, remember to change the table_name and column_name
 
 ### Step 2: Find tables related to the filter-outed tables from Step 1
 - Using `script_1.sql` script again, but this time, change the `table_name` on **line 12** to the table name you filtered out from Step-1, 1 table a time. 

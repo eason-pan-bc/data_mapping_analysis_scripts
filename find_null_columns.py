@@ -9,15 +9,15 @@ from tqdm import tqdm
 ############################### Configure them as you wish #####################################
 ################################################################################################
 #### Configures for finding columns in tables directly related to, by EVENT_ID or their fks #####
-TABLE_NAME = 'CORP_PARTY'
-SCHEMA_NAME = 'COLIN_MGR_TST' # this is tst, you can use dev too COLIN_MGR_DEV
+TABLE_NAME = 'CORP_PARTY' # table name
+SCHEMA_NAME = 'COLIN_MGR_TST' # this is tst, not really recommend to use dev, since the COLIN-dev is not fully functional 
 EVENT_ID_COLUMN = 'START_EVENT_ID' # this is for the column used event_id as fk, can be found in previous steps using the provided sql code
-FILING_TYPE = 'NOCDR'
-ROW_LIMIT = 5000 # there are a loooot of rows in some tables, pick your number
+FILING_TYPE = 'NOCDR'  # filing type code
+ROW_LIMIT = 5000 # there are a lot of rows in some tables, pick your number
 RANDOM_SAMPLING = True  # True -> random sampling || False -> all rows
 ################################################################################################
 ## Configures for finding columns in tables not directly related to, by EVENT_ID or their fks ##
-NON_DIRECT_MODE = True # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
+NON_DIRECT_MODE = False # True -> check non-direct tables || False -> disable this feature, useful when initially trying to figure out columns in directly related tables
 COLUMN_NAME_MAIN = 'MAILING_ADDR_ID'  # the column contains key that has been used in the connected table as fk
 CONNECTED_TABLE_NAME = 'ADDRESS'
 COLUMN_NAME_CONNECTED = 'ADDR_ID'
@@ -25,9 +25,7 @@ COLUMN_NAME_CONNECTED = 'ADDR_ID'
 
 
 def get_connection_string() -> str:
-    """
-    Creates connection string from environment variables.
-    """
+    """Creates connection string from environment variables."""
     load_dotenv()  # Load environment variables from .env file
     
     user = os.getenv('DB_USER')
@@ -55,12 +53,8 @@ def connect_to_db():
 
 def read_with_progress_bar(query:str, engine, row_count:int, chunk_size:int = 5000, description:str = "Analyzing data") -> pd.DataFrame:
     """Read SQL query with a progress bar"""
-    # count_query = f"SELECT COUNT(*) as count FROM ({query})"
-    # total_rows = pd.read_sql(count_query, engine).iloc[0]['count']
-
     #init a progress bar
     progress_bar = tqdm(total=row_count, desc=description, unit="rows")
-
 
     # read data in chunks
     chunks = []
@@ -74,12 +68,8 @@ def read_with_progress_bar(query:str, engine, row_count:int, chunk_size:int = 50
 
 
 def analyze_table_nulls(engine) -> tuple:
-    """
-    Analyzes non-NULL and NULL values in all columns of a specified Oracle table.
-    Uses configuration from .env file.
-    """
+    """Analyzes non-NULL values in all columns of a specified Oracle table."""
     try:
-        
         table_name = TABLE_NAME
         schema_name = SCHEMA_NAME
         event_id_column = EVENT_ID_COLUMN
@@ -87,9 +77,8 @@ def analyze_table_nulls(engine) -> tuple:
         row_limit = ROW_LIMIT
         random_sampling = RANDOM_SAMPLING
         
-        
         if not schema_name or not table_name:
-            raise ValueError("Missing schema configuration or table name")
+            raise ValueError("Missing schema configuration or/and table name")
 
         if random_sampling:
             # Build the filtered query with random sampling
@@ -110,6 +99,7 @@ def analyze_table_nulls(engine) -> tuple:
                 ) WHERE ROWNUM <= {row_limit}
             """
         else:
+            # full range
             filtered_query = f"""
                 WITH filtered_rows AS (
                     SELECT t.*
@@ -175,15 +165,15 @@ def analyze_table_nulls(engine) -> tuple:
         return results_df, df
         
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error: {e}")
         raise
 
 
-def analyze_non_direct_table_nulls(df: pd.DataFrame,
-                                   engine) -> pd.DataFrame:
+def analyze_non_direct_table_nulls(df: pd.DataFrame, engine) -> pd.DataFrame:
     """ Query Oracle database using values from a pandas DataFrame column."""
     print("Stage 2 started.")
-    print(f"Analyzing rows in connected table:\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] \n")
+    print(f"Analyzing rows in connected table:\nTable - {TABLE_NAME} ------> Table - {CONNECTED_TABLE_NAME},\
+          \nThrough {TABLE_NAME} [{COLUMN_NAME_MAIN}] -----> {CONNECTED_TABLE_NAME} [{COLUMN_NAME_CONNECTED}] \n")
     # Extract unique values from the Main table, and split to chunks, if needed
     col_values_list = df[COLUMN_NAME_MAIN.lower()].unique().tolist()
     value_chunks = [col_values_list[i:i + 1000] for i in range(0, len(col_values_list), 1000)] # split a big pd list to small lists no longer than 1000 (Oracle expression limit)
@@ -197,8 +187,7 @@ def analyze_non_direct_table_nulls(df: pd.DataFrame,
             # Initialize progress bar on first chunk
             if i == 1:
                 progress_bar = tqdm(total=total_chunks, 
-                        desc="Analyzing data: ",
-                        dynamic_ncols=True)
+                        desc="Analyzing data: ")
 
             formatted_values = [f"'{val}'" if isinstance(val, str) else str(val) 
                             for val in chunk]
